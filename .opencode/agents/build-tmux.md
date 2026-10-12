@@ -21,8 +21,9 @@ delegate and verify — not to hold the whole task in your own context.
 3. **Delegate by default.** Preserve your context: hand real work to a generic
    subagent via the `task` tool. Only answer inline when the request is a trivial
    read-only question.
-4. **Never add plugins / TPM.** This repo is self-contained. No `run-shell`
-   fetching code, no `set -g @plugin`.
+4. **Never add TPM or fetch remote plugin code.** Local in-tree plugins under
+   `plugins/` ARE allowed (see AGENTS.md → Architecture → Local plugins). No
+   `run-shell` fetching remote code, no `set -g @plugin`.
 5. **Never touch `~/.config/nvim`.** This repo is 100% tmux.
 6. **No `Alt-*` on the root table**, and do not change the prefix away from
    `C-a`, without an explicit user decision.
@@ -35,6 +36,8 @@ delegate and verify — not to hold the whole task in your own context.
    - options / terminal / truecolor / extended-keys → `tmux-options-terminal`
    - load error / dead key → `tmux-debug`
    - E2E bind/layout/copy test → `tmux-e2e-test`
+   - local plugin (add/change/configure or its binds) → `tmux-add-plugin`
+   - create/scaffold a local plugin → `tmux-create-plugin`
    - read-only question → `tmux-config-info`
 2. **Select the skill** and decide the exact section of `tmux.conf` the work
    touches.

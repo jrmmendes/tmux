@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# ~/.config/tmux/scripts/command-palette.sh
-# Self-contained tmux command palette (fzf) — no plugins, no TPM.
+# ~/.config/tmux/plugins/command-palette/entry.sh
+# Self-contained tmux command palette (fzf) — in-tree plugin, no TPM.
 #
-# Driven by the prefix table:
+# Registration/bind lives in plugins/command-palette.tmux (sourced by the
+# loader at the end of tmux.conf); the bind is C-a f:
 #   C-a f -> display-popup -E ... -e PALETTE_TARGET=#{pane_id} ... this script
 #
 # PALETTE_TARGET is the pane id captured at bind time. Inside a display-popup
@@ -16,7 +17,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(dirname -- "$SCRIPT_DIR")"
+# SCRIPT_DIR is plugins/command-palette, so the repo root is two levels up.
+REPO_DIR="$(dirname -- "$(dirname -- "$SCRIPT_DIR")")"
 CONF="$HOME/.config/tmux/tmux.conf"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 
@@ -101,12 +103,15 @@ emit_candidates() {
 }
 
 # --- fzf theming: gruvbox-hard (palette is the single source of truth) -------
-GU="bg:#282828,bg+:#3c3836,fg:#ebdbb2,fg+:#fbf1c7,hl:#fb4934,hl+:#fe8019,info:#fabd2f,prompt:#b8bb26,pointer:#d3869b,marker:#83a598,spinner:#8ec07c,header:#a89984,border:#7c6f64,query:#ebdbb2"
+GU="bg:#282828,bg+:#3c3836,fg:#ebdbb2,fg+:#fbf1c7,hl:#fb4934,hl+:#fe8019,info:#a89984,prompt:#b8bb26,pointer:#d3869b,marker:#83a598,spinner:#8ec07c,header:#a89984,border:#7c6f64,label:#fabd2f,query:#ebdbb2,separator:#3c3836,scrollbar:#7c6f64,preview-border:#7c6f64,preview-label:#fabd2f,preview-fg:#ebdbb2,preview-bg:#282828"
 
 fzf_theme() {
-  fzf --layout=reverse --height=100% --border=rounded \
-      --border-label=" Command palette " \
-      --prompt="▸ " --pointer="▌" --marker="▌" --info=inline \
+  fzf --layout=reverse --height=100% \
+      --border=rounded --border-label=" Command palette " --border-label-pos=3 \
+      --prompt="▸ " --pointer="▶" --marker="▶" \
+      --info=inline-right --highlight-line \
+      --preview-window='right,52%,border-left,wrap' \
+      --preview-label=' detalhe ' --preview-label-pos=3 \
       --color="$GU" "$@"
 }
 
@@ -114,7 +119,7 @@ fzf_theme() {
 # which fights the popup). Prefilled with the current name.
 prompt_text() {
   local initial="${1:-}" label="${2:-Novo nome}" out
-  out="$(fzf_theme --print-query --no-info \
+  out="$(fzf_theme --print-query --border=none --no-info \
           --query="$initial" \
           --header="$label   (Enter confirma · Esc cancela)" \
           --preview-window=hidden <<< "$initial" 2>/dev/null)"
@@ -129,12 +134,28 @@ if [[ "$DUMP" == "1" ]]; then
   exit 0
 fi
 
-# --- Selection ---------------------------------------------------------------
-out="$(set +o pipefail; printf '%s\n' "$candidates" | fzf_theme \
+# --- Stage 1: pick a section ------------------------------------------------
+# Candidate field 1 is the section name. Order them the way the user wants.
+ordered_sections=""
+for s in "Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Presets"; do
+  if printf '%s\n' "$candidates" | cut -f1 | grep -qxF "$s"; then
+    n="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$s" '$1==s' | wc -l)"
+    ordered_sections+="$(printf '%s\t%s (%s)\n' "$s" "$s" "$n")"$'\n'
+  fi
+done
+
+section="$(printf '%s' "$ordered_sections" | fzf_theme \
+            --delimiter=$'\t' --with-nth=2 --accept-nth=1 \
+            --header="Seções   ·   Enter: abrir   ·   Esc: cancelar" )" || true
+[[ -n "$section" ]] || exit 0
+
+# --- Stage 2: candidates filtered to that section --------------------------
+filtered="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$section" '$1==s')"
+
+out="$(set +o pipefail; printf '%s\n' "$filtered" | fzf_theme \
         --delimiter=$'\t' --with-nth=2,3 --accept-nth=4,5 \
         --header="Enter: executar   Esc: cancelar" \
-        --preview='printf %s {6} | base64 -d 2>/dev/null' \
-        --preview-window='right:55%:wrap')"
+        --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
 rc=$?
 
 # Esc / Ctrl-C (fzf 130) or no selection: exit clean, no side effects.

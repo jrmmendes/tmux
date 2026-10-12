@@ -21,9 +21,12 @@ for a change, route to the appropriate skill (`tmux-add-keybind`, `tmux-theme`,
 | Status bar / colors                        | `tmux.conf` — "Status bar"                         |
 | Pane borders / titles / auto-rename        | `tmux.conf` — "Pane borders and titles"            |
 | Terminal / truecolor / extended-keys       | `tmux.conf` — "Terminal / keys"                    |
+| Local plugins / their binds                | `plugins/<name>.tmux` + `plugins/<name>/`; `AGENTS.md` — "Local plugins" |
 
-Everything lives in the single file `tmux.conf`; there are no other config
-files and no plugins.
+Core config lives in the single file `tmux.conf`. Local plugins add their own
+`plugins/<name>.tmux` (which declares their binds) plus `plugins/<name>/`
+implementation trees, loaded by the `source-file plugins/*.tmux` glob at the end
+of `tmux.conf`.
 
 ## How to answer well
 

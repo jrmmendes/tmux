@@ -6,7 +6,8 @@ the skills under `.agents/skills/` and are loaded on demand.
 
 ## What this repo is
 
-A **self-contained** tmux configuration — **no TPM and no plugins**, ever. It
+A **self-contained** tmux configuration — **no TPM, no remote plugins**; local
+in-tree plugins live under `plugins/` (see Architecture → Local plugins). It
 turns tmux into a cockpit: several AI agents, TUIs and nvim side by side in
 panes. It deliberately mirrors the **Neovim v3 config** (`~/.config/nvim`):
 gruvbox dark `contrast="hard"`, the same palette and the same key language.
@@ -33,9 +34,16 @@ the matching section and keep the section order:
 6. **Status bar** — gruvbox-hard, flat blocks, no powerline arrows.
 7. **Pane borders and titles** — `pane-border-status top`, green active border,
    auto-rename.
+8. **Local plugins** — `plugins/<name>.tmux` (registration: declares the
+   plugin's OWN binds/options) plus `plugins/<name>/` (pure tree, e.g.
+   `entry.sh`), loaded by `source-file ~/.config/tmux/plugins/*.tmux` at the end
+   of `tmux.conf`. **Adding a plugin = adding a file.** Plugin-provided keybinds
+   live in the plugin's `.tmux` file, not in tmux.conf's Keybindings section.
 
-There is no plugin manager, no `set -g @plugin`, no `run-shell` fetching code.
-Adding a behavior means adding tmux options/binds, not a plugin.
+There is no plugin manager, no `set -g @plugin`, and no `run-shell` fetching
+remote code. Local in-tree plugins under `plugins/` ARE allowed (see
+Architecture → Local plugins): adding a behavior is either a tmux option/bind in
+the matching section, or a new file under `plugins/`.
 
 ## Conventions
 
@@ -63,8 +71,9 @@ Adding a behavior means adding tmux options/binds, not a plugin.
 
 ## Guardrails
 
-- **Never add plugins / TPM.** If a feature needs a plugin, propose a
-  self-contained alternative or say it is out of scope.
+- **Never add TPM or fetch remote plugin code.** Local in-tree plugins under
+  `plugins/` ARE allowed (see Architecture → Local plugins); a feature is either
+  a tmux option/bind in the matching section, or a new file under `plugins/`.
 - **Never touch `~/.config/nvim`.** This repo is 100% tmux.
 - Do not bind `Alt-*` on the root table, and do not change the prefix away from
   `C-a`, without an explicit user decision recorded here.
@@ -90,6 +99,8 @@ Adding a behavior means adding tmux options/binds, not a plugin.
 | Debug/reproduce a load error or a key that does not work | `tmux-debug`              |
 | E2E-test binds/layout/copy in a headless tmux session    | `tmux-e2e-test`           |
 | Answer questions about the current config (read-only)    | `tmux-config-info`        |
+| Add/change/configure a local plugin or its binds         | `tmux-add-plugin`        |
+| Create/scaffold a local plugin                           | `tmux-create-plugin`     |
 
 ## Delegation protocol
 

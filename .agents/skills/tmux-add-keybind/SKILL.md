@@ -11,7 +11,10 @@ Every bind lives in `tmux.conf`, in one of two sections:
 1. **Prefix table** (default) → the "Keybindings" section. Reached with `C-a`.
 2. **copy-mode-vi table** → the "Copy-mode (vi) + Wayland clipboard" section.
 
-There is no other place: no plugins, no `run-shell` sourcing extra files.
+Core binds live only in these two sections. A **plugin's own binds** live in
+that plugin's `plugins/<name>.tmux` registration file instead, sourced by the
+loader at the end of `tmux.conf` (see `tmux-add-plugin`) — never in
+`tmux.conf`'s Keybindings section.
 
 ## Rules
 

@@ -8,10 +8,11 @@
 Mendes' self-contained tmux cockpit
 ```
 
-A self-contained tmux config (no TPM, no plugins) built as a **cockpit** for AI
-agents, TUIs and nvim side by side in panes. It matches the look and key
-language of the [Neovim v3 config](https://github.com/jrmmendes/nvim-v2):
-gruvbox dark `contrast="hard"`.
+A self-contained tmux config (no TPM; in-tree local plugins under `plugins/`)
+built as a **cockpit** for AI agents, TUIs and nvim side by side in panes. It
+matches the look and key language of the
+[Neovim v3 config](https://github.com/jrmmendes/nvim-v2): gruvbox dark
+`contrast="hard"`.
 
 tmux >= 3.2 reads `~/.config/tmux/tmux.conf` by default (XDG), so no wrapper or
 `TMUX_CONF` is needed.
@@ -20,12 +21,18 @@ tmux >= 3.2 reads `~/.config/tmux/tmux.conf` by default (XDG), so no wrapper or
 
 - `tmux.conf` — the whole configuration: prefix, terminal/truecolor, options,
   keybindings, copy-mode clipboard, status bar and pane borders.
+- `plugins/` — local in-tree plugins: `plugins/<name>.tmux` (registration, which
+  declares the plugin's own binds) plus `plugins/<name>/` (implementation tree,
+  e.g. `entry.sh`), loaded by the `source-file plugins/*.tmux` glob at the end of
+  `tmux.conf`.
 - `AGENTS.md` — always-active rules for OpenCode agents: architecture,
   conventions, guardrails and a task → skill routing map.
 - `.agents/skills/tmux-*/SKILL.md` — on-demand procedures loaded by agents.
 - `.opencode/agents/build-tmux.md` — the `Build:Tmux` primary agent (orchestrator).
 - `.opencode/tools/new-pane-preset.ts` — native OpenCode tool that scaffolds a
   pane-layout preset + its keybind.
+- `.opencode/tools/new-tmux-plugin.ts` — native OpenCode tool that scaffolds a
+  local plugin (`plugins/<name>.tmux` + `plugins/<name>/entry.sh`).
 
 ## Keybindings (prefix `C-a`)
 
@@ -49,6 +56,7 @@ increment). No `Alt-*` is bound on the root table, so the nvim `<A-*>` maps
 | `C-a d` | detach |
 | `C-a [` | copy-mode (vi) |
 | `C-a r` | reload config |
+| `C-a f` | command palette (fzf popup plugin) |
 
 Copy-mode (vi): `v` select, `C-v` rectangle, `y` copy to the Wayland clipboard
 (`wl-copy`); mouse drag-and-release also copies. `set-clipboard on` (OSC 52) is
@@ -89,12 +97,16 @@ This repo is set up for [OpenCode](https://opencode.ai) agents:
 - `.opencode/agents/build-tmux.md` — the `Build:Tmux` primary agent: classify,
   route, delegate, validate, report.
 - `.agents/skills/tmux-*/SKILL.md` — procedures for read-only questions, adding
-  keybinds, theming, options/terminal, debugging and E2E testing.
+  keybinds, theming, options/terminal, debugging, E2E testing, and adding or
+  creating local plugins (`tmux-add-plugin`, `tmux-create-plugin`).
 - `.opencode/tools/new-pane-preset.ts` — scaffolds a pane-layout preset and its
   keybind entry.
+- `.opencode/tools/new-tmux-plugin.ts` — scaffolds a local plugin
+  (`plugins/<name>.tmux` registration + `plugins/<name>/entry.sh`).
 
 ## Persistence
 
-Not implemented on purpose (yet): no `resurrect`/`continuum` (plugins would
-break the self-contained design). A home-grown layout save/restore may come
-later.
+Not implemented on purpose (yet): no `resurrect`/`continuum` — those are
+external/TPM-style plugins, which this repo does not use. Local in-tree plugins
+under `plugins/` are supported; a home-grown layout save/restore may come later
+as a local plugin.
