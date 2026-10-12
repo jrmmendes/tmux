@@ -1,0 +1,7 @@
+# Backup files
+*.bak
+*.bkp
+
+# Local notes / plans
+.plans/
+.playwright-mcp/
