@@ -11,6 +11,12 @@
 # the "current" pane is the popup itself, so every pane-relative action must
 # pass -t "$PALETTE_TARGET" explicitly; otherwise it would act on the popup.
 #
+# The home screen (stage 1) lists the sections AND every action, in the
+# canonical section order (Ações, Keybinds, Sessões, Janelas, Panes, Presets);
+# a query searches labels+descriptions and results keep that order (--no-sort).
+# Picking an action runs it; picking a section opens it (stage 2), where
+# Backspace with an empty query goes back to the home screen. Esc cancels.
+#
 # Debug / headless test: PALETTE_DUMP=1 (or --list) prints the TSV candidate
 # list to stdout and exits without launching fzf.
 # =============================================================================
@@ -49,29 +55,29 @@ row() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$(b64 "$6")"
 
 emit_candidates() {
   # --- A) Ações -------------------------------------------------------------
-  row "Ações" "[Ações] Split right"      "divide à direita (horizontal)"  "split-right"    "" "tmux split-window -h  -c '$cwd' -t $target"
-  row "Ações" "[Ações] Split left"       "divide à esquerda"              "split-left"     "" "tmux split-window -hb -c '$cwd' -t $target"
-  row "Ações" "[Ações] Split down"       "divide abaixo (vertical)"       "split-down"     "" "tmux split-window -v  -c '$cwd' -t $target"
-  row "Ações" "[Ações] Split up"         "divide acima"                   "split-up"       "" "tmux split-window -vb -c '$cwd' -t $target"
-  row "Ações" "[Ações] Nova janela"      "nova janela no cwd do pane"     "new-window"     "" "tmux new-window -c '$cwd' -t $sess"
-  row "Ações" "[Ações] Matar pane"       "fecha o pane alvo"              "kill-pane"      "" "tmux kill-pane -t $target"
-  row "Ações" "[Ações] Zoom pane"        "alterna o zoom do pane"         "zoom-pane"      "" "tmux resize-pane -Z -t $target"
-  row "Ações" "[Ações] Próxima janela"   "vai para a próxima janela"      "next-window"    "" "tmux next-window -t $sess"
-  row "Ações" "[Ações] Janela anterior"  "volta uma janela"               "prev-window"    "" "tmux previous-window -t $sess"
-  row "Ações" "[Ações] Próximo layout"   "cicla o layout do pane"         "next-layout"    "" "tmux next-layout -t $win"
-  row "Ações" "[Ações] Copy-mode"        "entra no modo cópia (vi)"       "copy-mode"      "" "tmux copy-mode -t $target"
-  row "Ações" "[Ações] Renomear janela"  "renomeia a janela (prompt)"     "rename-window"  "" "tmux rename-window -t $win -- <novo-nome>"
-  row "Ações" "[Ações] Renomear sessão"  "renomeia a sessão (prompt)"     "rename-session" "" "tmux rename-session -t $sess -- <novo-nome>"
-  row "Ações" "[Ações] Recarregar config" "recarrega ~/.config/tmux/tmux.conf" "reload"     "" "tmux source-file $CONF \\; display-message 'Config recarregada!'"
-  row "Ações" "[Ações] Detach"           "desanexa o cliente"             "detach"         "" "tmux detach-client -s $sess"
-  row "Ações" "[Ações] Matar sessão"     "encerra a sessão"               "kill-session"   "" "tmux kill-session -t $sess"
+  row "Ações" "Ações > Split right"      "divide à direita (horizontal)"  "split-right"    "" "tmux split-window -h  -c '$cwd' -t $target"
+  row "Ações" "Ações > Split left"       "divide à esquerda"              "split-left"     "" "tmux split-window -hb -c '$cwd' -t $target"
+  row "Ações" "Ações > Split down"       "divide abaixo (vertical)"       "split-down"     "" "tmux split-window -v  -c '$cwd' -t $target"
+  row "Ações" "Ações > Split up"         "divide acima"                   "split-up"       "" "tmux split-window -vb -c '$cwd' -t $target"
+  row "Ações" "Ações > Nova janela"      "nova janela no cwd do pane"     "new-window"     "" "tmux new-window -c '$cwd' -t $sess"
+  row "Ações" "Ações > Matar pane"       "fecha o pane alvo"              "kill-pane"      "" "tmux kill-pane -t $target"
+  row "Ações" "Ações > Zoom pane"        "alterna o zoom do pane"         "zoom-pane"      "" "tmux resize-pane -Z -t $target"
+  row "Ações" "Ações > Próxima janela"   "vai para a próxima janela"      "next-window"    "" "tmux next-window -t $sess"
+  row "Ações" "Ações > Janela anterior"  "volta uma janela"               "prev-window"    "" "tmux previous-window -t $sess"
+  row "Ações" "Ações > Próximo layout"   "cicla o layout do pane"         "next-layout"    "" "tmux next-layout -t $win"
+  row "Ações" "Ações > Copy-mode"        "entra no modo cópia (vi)"       "copy-mode"      "" "tmux copy-mode -t $target"
+  row "Ações" "Ações > Renomear janela"  "renomeia a janela (prompt)"     "rename-window"  "" "tmux rename-window -t $win -- <novo-nome>"
+  row "Ações" "Ações > Renomear sessão"  "renomeia a sessão (prompt)"     "rename-session" "" "tmux rename-session -t $sess -- <novo-nome>"
+  row "Ações" "Ações > Recarregar config" "recarrega ~/.config/tmux/tmux.conf" "reload"     "" "tmux source-file $CONF \\; display-message 'Config recarregada!'"
+  row "Ações" "Ações > Detach"           "desanexa o cliente"             "detach"         "" "tmux detach-client -s $sess"
+  row "Ações" "Ações > Matar sessão"     "encerra a sessão"               "kill-session"   "" "tmux kill-session -t $sess"
 
   # --- B) Keybinds — generated live from tmux (never drifts) ----------------
   local tbl line
   for tbl in prefix copy-mode-vi; do
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
-      row "Keybinds" "[Keybinds] $line" "table: $tbl (informativo)" "info" "$line" "$line"
+      row "Keybinds" "Keybinds > $line" "table: $tbl (informativo)" "info" "$line" "$line"
     done < <(tm list-keys -T "$tbl")
   done
 
@@ -79,17 +85,17 @@ emit_candidates() {
   local id name sid wid pid label
   while IFS='|' read -r id name; do
     [[ -n "$id" ]] || continue
-    row "Sessões" "[Sessões] $name" "$id" "session" "$id" "tmux switch-client -t $id"
+    row "Sessões" "Sessões > $name" "$id" "session" "$id" "tmux switch-client -t $id"
   done < <(tm list-sessions -F '#{session_id}|#{session_name}')
 
   while IFS='|' read -r sid wid label; do
     [[ -n "$wid" ]] || continue
-    row "Janelas" "[Janelas] $label" "$wid" "window" "$sid|$wid" "tmux select-window -t $wid"
+    row "Janelas" "Janelas > $label" "$wid" "window" "$sid|$wid" "tmux select-window -t $wid"
   done < <(tm list-windows -a -F '#{session_id}|#{window_id}|#{session_name}:#{window_index} #{window_name}')
 
   while IFS='|' read -r sid wid pid label; do
     [[ -n "$pid" ]] || continue
-    row "Panes" "[Panes] $label" "$pid" "pane" "$sid|$wid|$pid" "tmux select-pane -t $pid"
+    row "Panes" "Panes > $label" "$pid" "pane" "$sid|$wid|$pid" "tmux select-pane -t $pid"
   done < <(tm list-panes -a -F '#{session_id}|#{window_id}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index} #{pane_current_command}')
 
   # --- D) Presets (optional: presets/<name>.sh written by new-pane-preset) --
@@ -97,7 +103,7 @@ emit_candidates() {
   if [[ -d "$REPO_DIR/presets" ]]; then
     for p in "$REPO_DIR"/presets/*.sh; do
       [[ -e "$p" ]] || continue
-      row "Presets" "[Presets] $(basename "$p" .sh)" "$p" "preset" "$p" "$p"
+      row "Presets" "Presets > $(basename "$p" .sh)" "$p" "preset" "$p" "$p"
     done
   fi
 }
@@ -134,37 +140,80 @@ if [[ "$DUMP" == "1" ]]; then
   exit 0
 fi
 
-# --- Stage 1: pick a section ------------------------------------------------
-# Candidate field 1 is the section name. Order them the way the user wants.
-ordered_sections=""
-for s in "Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Presets"; do
+# --- Home list: sections + every action, in canonical section order ---------
+# Stage-1 fields: kind \t label \t desc \t arg1 \t arg2 \t b64(preview)
+#   section row -> kind=section, arg1=<section name>
+#   action row  -> kind=run,     arg1=<action>, arg2=<payload>
+canonical_sections=("Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Presets")
+
+home=""
+for s in "${canonical_sections[@]}"; do
   if printf '%s\n' "$candidates" | cut -f1 | grep -qxF "$s"; then
     n="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$s" '$1==s' | wc -l)"
-    ordered_sections+="$(printf '%s\t%s (%s)\n' "$s" "$s" "$n")"$'\n'
+    home+="$(printf 'section\t%s (%s)\t\t%s\t\t\n' "$s" "$n" "$s")"$'\n'
   fi
 done
+while IFS=$'\t' read -r _cat label desc act pay prev; do
+  [[ -n "$label" ]] || continue
+  home+="$(printf 'run\t%s\t%s\t%s\t%s\t%s\n' "$label" "$desc" "$act" "$pay" "$prev")"$'\n'
+done <<< "$candidates"
 
-section="$(printf '%s' "$ordered_sections" | fzf_theme \
-            --delimiter=$'\t' --with-nth=2 --accept-nth=1 \
-            --header="Seções   ·   Enter: abrir   ·   Esc: cancelar" )" || true
-[[ -n "$section" ]] || exit 0
+ST2_SENT=""
+trap 'rm -f "${ST2_SENT:-}"' EXIT
 
-# --- Stage 2: candidates filtered to that section --------------------------
-filtered="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$section" '$1==s')"
-
-out="$(set +o pipefail; printf '%s\n' "$filtered" | fzf_theme \
-        --delimiter=$'\t' --with-nth=2,3 --accept-nth=4,5 \
-        --header="Enter: executar   Esc: cancelar" \
-        --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
-rc=$?
-
-# Esc / Ctrl-C (fzf 130) or no selection: exit clean, no side effects.
-if [[ $rc -ne 0 || -z "$out" ]]; then
-  exit 0
-fi
-
+# --- Palette loop: stage 1 (home) -> stage 2 (section), Backspace goes back --
 action=""; payload=""
-IFS=$'\t' read -r action payload <<< "$out"
+while true; do
+  # Stage 1: search actions directly. --no-sort keeps canonical home order;
+  # --nth=1,2 restricts matching to label+desc. NOTE: with --with-nth set, fzf
+  # evaluates --nth against the TRANSFORMED line (label=1, desc=2), never the
+  # hidden payload/base64 fields.
+  sel="$(set +o pipefail; printf '%s' "$home" | fzf_theme \
+          --no-sort \
+          --delimiter=$'\t' --with-nth=2,3 --nth=1,2 --accept-nth=1,4,5 \
+          --header="Buscar ações   ·   Enter: abrir/executar   ·   Esc: cancelar" \
+          --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+  rc=$?
+  if [[ $rc -ne 0 || -z "$sel" ]]; then
+    exit 0
+  fi
+
+  kind=""; arg1=""; arg2=""
+  IFS=$'\t' read -r kind arg1 arg2 <<< "$sel"
+
+  if [[ "$kind" == "run" ]]; then
+    action="$arg1"; payload="$arg2"
+    break
+  fi
+
+  # kind == section -> stage 2 for that section, with Backspace-to-go-back.
+  section="$arg1"
+  filtered="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$section" '$1==s')"
+
+  while true; do
+    ST2_SENT="$(mktemp -u)"; rm -f "$ST2_SENT"
+    out="$(set +o pipefail; printf '%s\n' "$filtered" | fzf_theme \
+            --delimiter=$'\t' --with-nth=2,3 --accept-nth=4,5 \
+            --header="Enter: executar   ·   Backspace: voltar   ·   Esc: cancelar" \
+            --bind "backspace:transform:[[ -n {q} ]] && echo backward-delete-char || echo 'execute-silent(touch ${ST2_SENT})+abort'" \
+            --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+    rc=$?
+
+    if [[ -f "$ST2_SENT" ]]; then
+      rm -f "$ST2_SENT"
+      continue 2
+    fi
+    rm -f "$ST2_SENT"
+
+    # Esc / Ctrl-C (fzf 130) or no selection: exit clean, no side effects.
+    if [[ $rc -ne 0 || -z "$out" ]]; then
+      exit 0
+    fi
+
+    IFS=$'\t' read -r action payload <<< "$out"
+    break 2
+  done
+done
 
 run() { "$TMUX_BIN" "$@" >/dev/null 2>&1 || true; }
 cli=(); [[ -n "$client" ]] && cli=(-c "$client")
