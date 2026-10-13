@@ -40,23 +40,23 @@ tmux >= 3.2 reads `~/.config/tmux/tmux.conf` by default (XDG), so no wrapper or
 increment). No `Alt-*` is bound on the root table, so the nvim `<A-*>` maps
 (`<A-f>`, `<A-p>`, `<A-,>`, `<A-g>`, `<A-n>`, `<A-s>`, `<A-d>`) keep working.
 
-| Key | Action |
-| --- | --- |
-| `C-a C-a` | literal `C-a` to the app |
-| `C-a h/j/k/l` | navigate panes (vim motions) |
-| `C-a \|` | split right (`-h`, matches `splitright`) |
-| `C-a -` | split below (`-v`, matches `splitbelow`) |
-| `C-a H/J/K/L` | resize pane (repeatable, 5 cells) |
-| `C-a z` | zoom pane |
-| `C-a x` | kill pane |
-| `C-a Space` | next layout |
-| `C-a c` | new window in cwd |
-| `C-a n` / `C-a p` | next / previous window |
-| `C-a ,` / `C-a $` | rename window / session |
-| `C-a d` | detach |
-| `C-a [` | copy-mode (vi) |
-| `C-a r` | reload config |
-| `C-a f` | command palette (fzf popup plugin) |
+| Key               | Action                                   |
+| ----------------- | ---------------------------------------- |
+| `C-a C-a`         | literal `C-a` to the app                 |
+| `C-a h/j/k/l`     | navigate panes (vim motions)             |
+| `C-a \|`          | split right (`-h`, matches `splitright`) |
+| `C-a -`           | split below (`-v`, matches `splitbelow`) |
+| `C-a H/J/K/L`     | resize pane (repeatable, 5 cells)        |
+| `C-a z`           | zoom pane                                |
+| `C-a x`           | kill pane                                |
+| `C-a Space`       | next layout                              |
+| `C-a c`           | new window in cwd                        |
+| `C-a n` / `C-a p` | next / previous window                   |
+| `C-a ,` / `C-a $` | rename window / session                  |
+| `C-a d`           | detach                                   |
+| `C-a [`           | copy-mode (vi)                           |
+| `C-a r`           | reload config                            |
+| `C-a f`           | command palette (fzf popup plugin)       |
 
 Copy-mode (vi): `v` select, `C-v` rectangle, `y` copy to the Wayland clipboard
 (`wl-copy`); mouse drag-and-release also copies. `set-clipboard on` (OSC 52) is
@@ -74,6 +74,20 @@ on the right.
 `pane-border-status top` with the pane title (falling back to the current
 command) on the border; the active pane border is green (`#b8bb26`). Windows
 auto-rename to the focused process (`nvim`, `opencode`, `lazydocker`, ...).
+
+## Install
+
+```bash
+git clone git@github.com:jrmmendes/tmux.git ~/.config/tmux
+```
+
+No build or install step: the config is just `tmux.conf` plus the in-tree
+`plugins/`, and tmux >= 3.2 reads `~/.config/tmux/tmux.conf` by default (XDG) —
+nothing to fetch or compile (unlike opencode's `bun install`).
+
+If tmux is already running, reload with `C-a r` (or `tmux source-file
+~/.config/tmux/tmux.conf`). Runtime deps (`fzf`, `bat`, `wl-clipboard`, Nerd
+Font, `tmux-256color`, `zsh`) are listed under [Requirements](#requirements).
 
 ## Requirements
 
