@@ -12,7 +12,7 @@
 # pass -t "$PALETTE_TARGET" explicitly; otherwise it would act on the popup.
 #
 # The home screen (stage 1) lists the sections AND every action, in the
-# canonical section order (Ações, Keybinds, Sessões, Janelas, Panes, Presets);
+# canonical section order (Ações, Keybinds, Sessões, Janelas, Panes, Layouts, Presets);
 # a query searches labels+descriptions and results keep that order (--no-sort).
 # Picking an action runs it; picking a section opens it (stage 2), where
 # Backspace with an empty query goes back to the home screen. Esc cancels.
@@ -64,6 +64,11 @@ emit_candidates() {
   row "Ações" "Ações > Copy-mode"        "entra no modo cópia (vi)"       "copy-mode"      "" "tmux copy-mode -t $target"
   row "Ações" "Ações > Renomear janela"  "renomeia a janela (prompt)"     "rename-window"  "" "tmux rename-window -t $win -- <novo-nome>"
   row "Ações" "Ações > Renomear sessão"  "renomeia a sessão (prompt)"     "rename-session" "" "tmux rename-session -t $sess -- <novo-nome>"
+  row "Ações" "Ações > Renomear pane"    "renomeia o título do pane (prompt)" "rename-pane" "" "tmux select-pane -T <novo-nome> -t $target"
+  row "Ações" "Ações > Personalizar opencode" "abre o opencode em ~/.config/opencode" "open-config" "$HOME/.config/opencode" "tmux split-window -h -c ~/.config/opencode -t $target opencode"
+  row "Ações" "Ações > Personalizar neovim"   "abre o opencode em ~/.config/nvim"     "open-config" "$HOME/.config/nvim"     "tmux split-window -h -c ~/.config/nvim -t $target opencode"
+  row "Ações" "Ações > Personalizar tmux"     "abre o opencode em ~/.config/tmux"     "open-config" "$HOME/.config/tmux"     "tmux split-window -h -c ~/.config/tmux -t $target opencode"
+  row "Ações" "Ações > Salvar layout atual"   "captura a janela e abre o opencode para salvá-la" "save-layout" "$SCRIPT_DIR/save-layout.sh" "opencode --prompt '<layout capturado>'"
   row "Ações" "Ações > Recarregar config" "recarrega ~/.config/tmux/tmux.conf" "reload"     "" "tmux source-file $CONF \\; display-message 'Config recarregada!'"
   row "Ações" "Ações > Detach"           "desanexa o cliente"             "detach"         "" "tmux detach-client -s $sess"
   row "Ações" "Ações > Matar sessão"     "encerra a sessão"               "kill-session"   "" "tmux kill-session -t $sess"
@@ -94,7 +99,18 @@ emit_candidates() {
     row "Panes" "Panes > $label" "$pid" "pane" "$sid|$wid|$pid" "tmux select-pane -t $pid"
   done < <(tm list-panes -a -F '#{session_id}|#{window_id}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index} #{pane_current_command}')
 
-  # --- D) Presets (optional: presets/<name>.sh written by new-pane-preset) --
+  # --- D) Layouts (glob de plugins/command-palette/layouts/*.sh) -----------
+  # Cada arquivo é o próprio preview (preview.sh lay:file:<path> -> figure).
+  local lf meta llabel ldesc
+  for lf in "$SCRIPT_DIR"/layouts/*.sh; do
+    [[ -x "$lf" ]] || continue
+    meta="$("$lf" meta)"
+    IFS=$'\t' read -r llabel ldesc <<< "$meta"
+    [[ -n "$llabel" ]] || continue
+    row "Layouts" "Layouts > $llabel" "$ldesc" "layout-file" "$lf" "lay:file:$lf"
+  done
+
+  # --- E) Presets (optional: presets/<name>.sh written by new-pane-preset) --
   local p
   if [[ -d "$REPO_DIR/presets" ]]; then
     for p in "$REPO_DIR"/presets/*.sh; do
@@ -117,13 +133,19 @@ fzf_theme() {
       --color="$GU" "$@"
 }
 
+# Field 6 of each row is either "lay:file:<path>" (the layout file draws its own
+# figure) or a tmux command; preview.sh renders it. The template contains {6}
+# and nothing else that looks like an fzf placeholder — hence the dispatcher.
+PREVIEW_CMD="exec \"$SCRIPT_DIR/preview.sh\" {6}"
+
 # Prompt for a new name via fzf --print-query (never tmux command-prompt,
 # which fights the popup). Prefilled with the current name.
 prompt_text() {
   local initial="${1:-}" label="${2:-Novo nome}" out
-  out="$(fzf_theme --print-query --border=none --no-info \
+  out="$(fzf_theme --print-query \
+          --border=rounded --border-label=' Renomear ' --border-label-pos=3 \
           --query="$initial" \
-          --header="$label   (Enter confirma · Esc cancela)" \
+          --header="$label   ·   Enter confirma · Esc cancela" \
           --preview-window=hidden <<< "$initial" 2>/dev/null)"
   printf '%s' "${out%%$'\n'*}"
 }
@@ -140,7 +162,7 @@ fi
 # Stage-1 fields: kind \t label \t desc \t arg1 \t arg2 \t preview
 #   section row -> kind=section, arg1=<section name>
 #   action row  -> kind=run,     arg1=<action>, arg2=<payload>
-canonical_sections=("Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Presets")
+canonical_sections=("Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Layouts" "Presets")
 
 # One awk pass builds the whole home string: section rows in canonical order
 # (only those present in candidates), then every action row, field layout
@@ -167,7 +189,7 @@ while true; do
           --no-sort \
           --delimiter=$'\t' --with-nth=2,3 --nth=1,2 --accept-nth=1,4,5 \
           --header="Buscar ações   ·   Enter: abrir/executar   ·   Esc: cancelar" \
-          --preview='printf %s {6} | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+          --preview="$PREVIEW_CMD" )"
   rc=$?
   if [[ $rc -ne 0 || -z "$sel" ]]; then
     exit 0
@@ -191,7 +213,7 @@ while true; do
             --delimiter=$'\t' --with-nth=2,3 --accept-nth=4,5 \
             --header="Enter: executar   ·   Backspace: voltar   ·   Esc: cancelar" \
             --bind "backspace:transform:[[ -n {q} ]] && echo backward-delete-char || echo 'execute-silent(touch ${ST2_SENT})+abort'" \
-            --preview='printf %s {6} | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+            --preview="$PREVIEW_CMD" )"
     rc=$?
 
     if [[ -f "$ST2_SENT" ]]; then
@@ -212,6 +234,11 @@ done
 
 run() { "$TMUX_BIN" "$@" >/dev/null 2>&1 || true; }
 cli=(); [[ -n "$client" ]] && cli=(-c "$client")
+
+# OPEN_CMD is the command launched in the "Personalizar" dirs (open-config): the
+# split pane runs it with the config folder as its working directory. Single
+# token, so no quoting is needed when passed to `run split-window ... "$OPEN_CMD"`.
+OPEN_CMD="${OPEN_CMD:-opencode}"
 
 case "$action" in
   split-right)  run split-window  -h  -c "$cwd" -t "$target" ;;
@@ -235,6 +262,12 @@ case "$action" in
     new="$(prompt_text "$sname" 'Novo nome da sessão')"
     [[ -n "$new" ]] && run rename-session -t "$sess" -- "$new"
     ;;
+  rename-pane)
+    ptitle="$(tm display-message -p -t "$target" '#{pane_title}')"
+    new="$(prompt_text "$ptitle" 'Novo nome do pane')"
+    [[ -n "$new" ]] && run select-pane -T "$new" -t "$target"
+    ;;
+  open-config)  run split-window -h -c "$payload" -t "$target" "$OPEN_CMD" ;;
   reload)       run source-file "$CONF" \; display-message "Config recarregada!" ;;
   detach)       run detach-client -s "$sess" ;;
   kill-session) run kill-session -t "$sess" ;;
@@ -250,6 +283,15 @@ case "$action" in
   pane)
     IFS='|' read -r ss ww pp <<< "$payload"
     run switch-client "${cli[@]}" -t "$ss" \; select-window -t "$ww" \; select-pane -t "$pp"
+    ;;
+  layout)       run select-layout -t "$win" "$payload" ;;
+  layout-file)
+    # aplica o layout do arquivo escolhido no pane-alvo (target) e no cwd dele.
+    [[ -x "$payload" ]] && "$payload" apply "$target" "$cwd" || true
+    ;;
+  save-layout)
+    # captura a janela atual e entrega o snapshot ao opencode (novo layout).
+    [[ -x "$payload" ]] && "$payload" capture "$target" "$win" "$client" || true
     ;;
   preset)
     [[ -x "$payload" ]] && "$payload" >/dev/null 2>&1 || true

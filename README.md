@@ -33,6 +33,9 @@ tmux >= 3.2 reads `~/.config/tmux/tmux.conf` by default (XDG), so no wrapper or
   pane-layout preset + its keybind.
 - `.opencode/tools/new-tmux-plugin.ts` — native OpenCode tool that scaffolds a
   local plugin (`plugins/<name>.tmux` + `plugins/<name>/entry.sh`).
+- `.opencode/tools/new-tmux-layout.ts` — native OpenCode tool that scaffolds a
+  command-palette flow layout
+  (`plugins/command-palette/layouts/<name>.sh`).
 
 ## Keybindings (prefix `C-a`)
 
@@ -111,16 +114,21 @@ This repo is set up for [OpenCode](https://opencode.ai) agents:
 - `.opencode/agents/build-tmux.md` — the `Build:Tmux` primary agent: classify,
   route, delegate, validate, report.
 - `.agents/skills/tmux-*/SKILL.md` — procedures for read-only questions, adding
-  keybinds, theming, options/terminal, debugging, E2E testing, and adding or
-  creating local plugins (`tmux-add-plugin`, `tmux-create-plugin`).
+  keybinds, theming, options/terminal, debugging, E2E testing, adding or creating
+  local plugins (`tmux-add-plugin`, `tmux-create-plugin`) and adding a
+  command-palette flow layout (`tmux-add-layout`).
 - `.opencode/tools/new-pane-preset.ts` — scaffolds a pane-layout preset and its
   keybind entry.
 - `.opencode/tools/new-tmux-plugin.ts` — scaffolds a local plugin
   (`plugins/<name>.tmux` registration + `plugins/<name>/entry.sh`).
+- `.opencode/tools/new-tmux-layout.ts` — scaffolds a command-palette flow layout
+  (`plugins/command-palette/layouts/<name>.sh`).
 
 ## Persistence
 
 Not implemented on purpose (yet): no `resurrect`/`continuum` — those are
-external/TPM-style plugins, which this repo does not use. Local in-tree plugins
-under `plugins/` are supported; a home-grown layout save/restore may come later
-as a local plugin.
+external/TPM-style plugins, which this repo does not use. The command palette
+instead carries **flow layouts** as in-tree files
+(`plugins/command-palette/layouts/*.sh`, one per layout), and
+`Ações > Salvar layout atual` captures the current window and hands the snapshot
+to `opencode` in a floating popup so a new layout file can be written from it.

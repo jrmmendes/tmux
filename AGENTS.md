@@ -39,6 +39,9 @@ the matching section and keep the section order:
    `entry.sh`), loaded by `source-file ~/.config/tmux/plugins/*.tmux` at the end
    of `tmux.conf`. **Adding a plugin = adding a file.** Plugin-provided keybinds
    live in the plugin's `.tmux` file, not in tmux.conf's Keybindings section.
+   The command-palette plugin keeps its flow layouts as **one file per layout**
+   under `plugins/command-palette/layouts/`, documented by the `tmux-add-layout`
+   skill.
 
 There is no plugin manager, no `set -g @plugin`, and no `run-shell` fetching
 remote code. Local in-tree plugins under `plugins/` ARE allowed (see
@@ -101,6 +104,7 @@ the matching section, or a new file under `plugins/`.
 | Answer questions about the current config (read-only)    | `tmux-config-info`        |
 | Add/change/configure a local plugin or its binds         | `tmux-add-plugin`        |
 | Create/scaffold a local plugin                           | `tmux-create-plugin`     |
+| Add/change a command-palette flow layout                  | `tmux-add-layout`         |
 
 ## Delegation protocol
 
