@@ -41,17 +41,13 @@ target="${PALETTE_TARGET:-}"
 
 cwd=""; sess=""; win=""; client=""
 if [[ -n "$target" ]]; then
-  cwd="$(tm display-message -p -t "$target" '#{pane_current_path}')"
-  sess="$(tm display-message -p -t "$target" '#{session_id}')"
-  win="$(tm display-message -p -t "$target" '#{window_id}')"
-  client="$(tm display-message -p -t "$target" '#{client_tty}')"
+  out="$(tm display-message -p -t "$target" '#{pane_current_path}|#{session_id}|#{window_id}|#{client_tty}')"
+  IFS='|' read -r cwd sess win client <<< "$out"
 fi
 [[ -n "$cwd" ]] || cwd="$HOME"
 
-# --- Candidate rows: cat \t label \t desc \t action \t payload \t b64(preview)
-b64() { printf '%s' "$1" | base64 -w0 2>/dev/null || printf '%s' "$1" | base64 2>/dev/null; }
-
-row() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$(b64 "$6")"; }
+# --- Candidate rows: cat \t label \t desc \t action \t payload \t preview ----
+row() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6"; }
 
 emit_candidates() {
   # --- A) Ações -------------------------------------------------------------
@@ -141,22 +137,21 @@ if [[ "$DUMP" == "1" ]]; then
 fi
 
 # --- Home list: sections + every action, in canonical section order ---------
-# Stage-1 fields: kind \t label \t desc \t arg1 \t arg2 \t b64(preview)
+# Stage-1 fields: kind \t label \t desc \t arg1 \t arg2 \t preview
 #   section row -> kind=section, arg1=<section name>
 #   action row  -> kind=run,     arg1=<action>, arg2=<payload>
 canonical_sections=("Ações" "Keybinds" "Sessões" "Janelas" "Panes" "Presets")
 
-home=""
-for s in "${canonical_sections[@]}"; do
-  if printf '%s\n' "$candidates" | cut -f1 | grep -qxF "$s"; then
-    n="$(printf '%s\n' "$candidates" | awk -F'\t' -v s="$s" '$1==s' | wc -l)"
-    home+="$(printf 'section\t%s (%s)\t\t%s\t\t\n' "$s" "$n" "$s")"$'\n'
-  fi
-done
-while IFS=$'\t' read -r _cat label desc act pay prev; do
-  [[ -n "$label" ]] || continue
-  home+="$(printf 'run\t%s\t%s\t%s\t%s\t%s\n' "$label" "$desc" "$act" "$pay" "$prev")"$'\n'
-done <<< "$candidates"
+# One awk pass builds the whole home string: section rows in canonical order
+# (only those present in candidates), then every action row, field layout
+# identical to the candidates TSV.
+home="$(printf '%s\n' "$candidates" | awk -F'\t' -v OFS='\t' -v sec_order="${canonical_sections[*]}" '
+  { c[$1]++; rows[NR]=$2 OFS $3 OFS $4 OFS $5 OFS $6 }
+  END {
+    n=split(sec_order, sec, " ")
+    for (i=1;i<=n;i++) if (sec[i] in c) print "section", sec[i]" ("c[sec[i]]")", "", sec[i], "", ""
+    for (i=1;i<=NR;i++) print "run", rows[i]
+  }')"
 
 ST2_SENT=""
 trap 'rm -f "${ST2_SENT:-}"' EXIT
@@ -167,12 +162,12 @@ while true; do
   # Stage 1: search actions directly. --no-sort keeps canonical home order;
   # --nth=1,2 restricts matching to label+desc. NOTE: with --with-nth set, fzf
   # evaluates --nth against the TRANSFORMED line (label=1, desc=2), never the
-  # hidden payload/base64 fields.
+  # hidden payload/preview fields.
   sel="$(set +o pipefail; printf '%s' "$home" | fzf_theme \
           --no-sort \
           --delimiter=$'\t' --with-nth=2,3 --nth=1,2 --accept-nth=1,4,5 \
           --header="Buscar ações   ·   Enter: abrir/executar   ·   Esc: cancelar" \
-          --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+          --preview='printf %s {6} | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
   rc=$?
   if [[ $rc -ne 0 || -z "$sel" ]]; then
     exit 0
@@ -196,7 +191,7 @@ while true; do
             --delimiter=$'\t' --with-nth=2,3 --accept-nth=4,5 \
             --header="Enter: executar   ·   Backspace: voltar   ·   Esc: cancelar" \
             --bind "backspace:transform:[[ -n {q} ]] && echo backward-delete-char || echo 'execute-silent(touch ${ST2_SENT})+abort'" \
-            --preview='printf %s {6} | base64 -d 2>/dev/null | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
+            --preview='printf %s {6} | bat --color=always --style=numbers --language=bash --paging=never 2>/dev/null' )"
     rc=$?
 
     if [[ -f "$ST2_SENT" ]]; then
