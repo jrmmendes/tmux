@@ -92,25 +92,13 @@ layout_leaf() {
   local cmdvar="LAYOUT_CMD_$role" dirvar="LAYOUT_DIR_$role"
   local cmd="${!cmdvar:-}" dir="${!dirvar:-}"
 
-  if [[ "$pane" == "$P_ROOT" ]]; then
-    # pane raiz já existe: digita (uma só linha) em vez de respawnar. Enviar
-    # cd e cmd em linhas separadas provoca duas reescritas de título do shell
-    # (allow-rename), que correm com o select-pane -T abaixo; numa linha só há
-    # uma atualização e o título do papel vence.
-    local line=""
-    if [[ -n "$dir" && "$dir" != "$CWD" ]]; then
-      line="cd $(printf '%q' "$dir")"
-    fi
-    if [[ -n "$cmd" ]]; then
-      line="${line:+$line && }$cmd"
-    fi
-    [[ -n "$line" ]] && tm send-keys -t "$pane" "$line" Enter
+  # Todo pane (inclusive a raiz) é respawnado: digitar com send-keys injetaria
+  # o comando DENTRO de um TUI que já roda no pane (nvim/opencode) em vez de
+  # iniciar o papel. Sem comando, respawna o shell no diretório do papel.
+  if [[ -n "$cmd" ]]; then
+    tm respawn-pane -k -t "$pane" -c "${dir:-$CWD}" "$cmd"
   else
-    if [[ -n "$cmd" ]]; then
-      tm respawn-pane -k -t "$pane" -c "${dir:-$CWD}" "$cmd"
-    elif [[ -n "$dir" ]]; then
-      tm respawn-pane -k -t "$pane" -c "$dir"
-    fi
+    tm respawn-pane -k -t "$pane" -c "${dir:-$CWD}"
   fi
 
   # título imediato (papel visível já no border) + registra para o sweep final.
@@ -122,12 +110,38 @@ layout_apply() {
   P_ROOT="$1"; CWD="$2"
   export P_ROOT CWD
   _LAYOUT_LEAVES=()
-  # o plano usa $P_ROOT e layout_leaf; roda no shell atual (source).
-  source <(awk -v mode=plan -v spec="$LAYOUT_SPEC" -f "$_LAYOUT_LIB_DIR/layout.awk")
 
-  # Sweep final: o shell pinta o título do prompt (ocioso) ou do comando
-  # (preexec) DEPOIS do select-pane imediato e venceria o papel. Espera o
-  # settle e reaplica todos os títulos de uma vez (um único sleep por apply).
+  # Valida o spec ANTES de tocar na janela: um LAYOUT_SPEC inválido falha alto
+  # (display-message) e deixa a janela intacta, em vez de virar plano errado.
+  local plan rc
+  plan="$(awk -v mode=plan -v spec="$LAYOUT_SPEC" -f "$_LAYOUT_LIB_DIR/layout.awk")"; rc=$?
+  if (( rc != 0 )); then
+    tm display-message -t "$P_ROOT" "Layout inválido: $LAYOUT_SPEC"
+    return 1
+  fi
+
+  # Reset: um layout SUBSTITUI a janela. Fecha os panes pré-existentes (senão
+  # o plano é enxertado só no pane raiz e os panes antigos continuam ao lado).
+  # Desfaz o zoom antes; o pane-alvo (P_ROOT) é preservado e vira a 1ª folha.
+  local win zoomed p
+  win="$(tm display-message -p -t "$P_ROOT" '#{window_id}')"
+  zoomed="$(tm display-message -p -t "$P_ROOT" '#{window_zoomed_flag}')"
+  [[ "$zoomed" == "1" ]] && tm resize-pane -Z -t "$P_ROOT"
+  while IFS= read -r p; do
+    [[ -n "$p" && "$p" != "$P_ROOT" ]] || continue
+    tm kill-pane -t "$p"
+  done < <(tm list-panes -t "$win" -F '#{pane_id}')
+
+  # Título de papel determinístico: allow-set-title (opção de janela) governa o
+  # OSC de título do pane; allow-rename só governa o nome da janela. Desligado,
+  # shell/nvim/opencode deixam de sobrescrever o papel depois do apply.
+  tm set-option -w -t "$P_ROOT" allow-set-title off
+
+  eval "$plan"
+
+  # Sweep final: reaplica os títulos depois do settle. Com allow-set-title off
+  # já é determinístico; fica como rede de segurança (ex.: tmux antigo sem a
+  # opção) num único sleep por apply.
   if (( ${#_LAYOUT_LEAVES[@]} > 0 )); then
     sleep "${_LAYOUT_TITLE_SETTLE:-0.3}"
     local i

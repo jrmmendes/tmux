@@ -10,7 +10,9 @@ function rd_num(   s,c){ s=""; while(pos<=length(spec)){ c=substr(spec,pos,1);
 function parse(   id,ch,nd,k,c,w){
   id=rd_name()
   if(substr(spec,pos,1)=="("){
+    # grupo: só H ou V; ao menos 2 filhos; separador/parêntese obrigatórios.
     pos++; nd=++nid; t[nd]=id; k=0
+    if(id!="H" && id!="V") bad=1
     while(1){
       c=parse(); w=1
       if(substr(spec,pos,1)==":"){ pos++; w=rd_num() }
@@ -18,11 +20,14 @@ function parse(   id,ch,nd,k,c,w){
       ch=substr(spec,pos,1)
       if(ch==","){ pos++; continue }
       if(ch==")"){ pos++; break }
-      break
+      bad=1; break
     }
-    nkids[nd]=k; return nd
+    nkids[nd]=k; if(k<2) bad=1
+    return nd
   }
-  nd=++nid; t[nd]="L"; lab[nd]=id; return nd
+  nd=++nid; t[nd]="L"; lab[nd]=id
+  if(id=="") bad=1
+  return nd
 }
 function draw(nd,x0,y0,x1,y1,    i,n,axis,x,y,w,rem,rc,remneed,tot,minrest){
   if(t[nd]=="L"){
@@ -94,6 +99,11 @@ function roles(nd,   i,n){
 }
 BEGIN{
   pos=1; root=parse()
+  # spec inválida nunca vira plano silencioso: falha com status != 0 e mensagem.
+  if(bad || pos!=length(spec)+1){
+    printf "layout.awk: especificação inválida: [%s]\n", spec > "/dev/stderr"
+    exit 2
+  }
   if(mode=="plan"){ vn=0; build("P_ROOT", root) }
   else if(mode=="roles"){ roles(root) }
   else{
