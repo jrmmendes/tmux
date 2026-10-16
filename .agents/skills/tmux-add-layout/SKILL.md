@@ -93,23 +93,37 @@ Worked examples:
 - `layout_main figure` — draws the **box-art diagram** sized to
   `$FZF_PREVIEW_COLUMNS` × `$FZF_PREVIEW_LINES` (the palette's fzf preview pane),
   so it redraws to fit when the preview is resized.
-- `layout_main apply <target-pane> <cwd>` — **builds the layout** by sourcing the
-  `split-window -p` **plan** that `layout.awk` emits (`mode=plan`): it splits the
-  target pane, sets each pane title to its role and launches `LAYOUT_CMD_<role>`
-  in each pane. The pane you launched from becomes the **first** role — its
-  command is typed with `send-keys`; every other pane is `respawn`ed with its
-  command (`-c "$LAYOUT_DIR_<role>"`, defaulting to the target pane's cwd).
+- `layout_main apply <target-pane> <cwd>` — **builds the layout** and, by design,
+  **replaces the target window**:
+
+  1. validates `LAYOUT_SPEC` first — an invalid spec prints
+     `Layout inválido: …` and exits non-zero, leaving the window untouched;
+  2. un-zooms the window and closes **every pane except the target one**, so the
+     result is exactly the layout (a layout is not grafted onto existing panes);
+  3. sets `allow-set-title off` on the window so the role titles stick;
+  4. runs the `split-window -p` **plan** that `layout.awk` emits (`mode=plan`)
+     and `respawn-pane -k`s **every** pane — the target pane included — with
+     `LAYOUT_CMD_<role>` in `LAYOUT_DIR_<role>` (default: the target pane's cwd).
+
+  The target pane becomes the **first** leaf of the spec. Nothing is ever typed
+  into a pane (`send-keys` would inject the command into a running TUI).
 - `layout_main roles` — prints one role label per line (handy for debugging).
 
-Two behaviours to keep in mind:
+Three behaviours to keep in mind:
 
-- **Role titles are best-effort.** The role is written to the pane title, but an
-  application that emits a terminal title (the zsh prompt, nvim, opencode) will
-  overwrite it, and the border then shows *its* title — usually what you want in
-  a cockpit. Command-less roles keep their shell title for the same reason.
 - **A role command that exits closes its pane.** `respawn-pane` makes the
   command the pane's process, so a long-lived tool (`opencode`, `nvim`, a shell)
-  is right; a command that exits immediately leaves no pane behind.
+  is right; a command that exits immediately leaves no pane behind. A
+  command-less role respawns a fresh shell in its dir.
+- **`apply` is destructive by design.** Pre-existing panes of the window are
+  closed and the target pane is respawned: scrollback and unsaved state in those
+  panes are lost. Only apply a layout to a window you are willing to rebuild.
+- **Role titles are deterministic in the target window.** `allow-set-title off`
+  keeps the role label on the border even when zsh/nvim/opencode emit a terminal
+  title (a `0.3 s` sweep re-applies them as a fallback). The option needs
+  **tmux ≥ 3.3** (on 3.2 it is a silent no-op and only the sweep mitigates); it
+  is per-window and persists — `set-option -w allow-set-title on` restores the
+  application title behaviour there.
 
 The `split-window -p` plan is an **internal** step of `apply`, not a
 `layout_main` subcommand: `layout.awk` parses, renders and plans;
@@ -136,7 +150,8 @@ template above.
 2. Scaffold with `new-tmux-layout` (or hand-write the file from the template).
 3. Edit `LAYOUT_LABEL` / `LAYOUT_DESC` / `LAYOUT_SPEC` and the
    `LAYOUT_CMD_<role>` lines to match the roles in your spec.
-4. Validate (below) and tell the user to reload with `C-a r`.
+4. Validate (below). No reload is needed: the palette globs `layouts/*.sh` on
+   every run, so the new entry is already in `C-a f`.
 
 ## Validate
 
@@ -152,11 +167,24 @@ FZF_PREVIEW_COLUMNS=80 FZF_PREVIEW_LINES=24 \
 PALETTE_DUMP=1 bash plugins/command-palette/entry.sh | grep Layouts
 
 # 4. Apply it for real, on a private socket, then inspect the panes.
+#    (Add extra panes first: apply must close them and leave exactly the spec.)
 tmux -L layout-test -f ~/.config/tmux/tmux.conf new-session -d -s s -x 120 -y 40
+tmux -L layout-test split-window -t s -h        # pre-existing pane, must disappear
 plugins/command-palette/layouts/<name>.sh apply \
-  "$(tmux -L layout-test list-panes -t s -F '#{pane_id}')" /tmp
+  "$(tmux -L layout-test list-panes -t s -F '#{pane_id}' | head -1)" /tmp
+sleep 0.5
 tmux -L layout-test list-panes -t s -F '#{pane_index} #{pane_title} #{pane_current_command}'
 tmux -L layout-test kill-server
+```
+
+Pane count must equal the number of leaves in `LAYOUT_SPEC`, geometry/peso must
+match the figure, and every `title` must be its role.
+
+```bash
+# 5. An invalid spec must fail loudly and leave the window intact.
+LAYOUT_SPEC='H(agent:50,terminal' plugins/command-palette/layouts/<name>.sh \
+  apply "$(tmux -L layout-test list-panes -t s -F '#{pane_id}')" /tmp
+# → stderr: layout.awk: especificação inválida: [H(agent:50,terminal] ; rc=1
 ```
 
 Use a **private socket** (`-L layout-test`) for the apply test so the running

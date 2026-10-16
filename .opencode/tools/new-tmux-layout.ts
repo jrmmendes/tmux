@@ -1,8 +1,32 @@
 import { tool } from "@opencode-ai/plugin"
+import { execFileSync } from "node:child_process"
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 const defaultSpec = "H(agent:50,terminal:50)"
+
+// The DSL parser is the single source of truth: layout.awk exits 2 (with a
+// message on stderr) for an invalid spec, so scaffolding can never write a
+// layout that would silently do nothing.
+const assertValidSpec = (worktree: string, spec: string) => {
+  try {
+    execFileSync(
+      "awk",
+      [
+        "-v",
+        "mode=roles",
+        "-v",
+        `spec=${spec}`,
+        "-f",
+        join(worktree, "plugins", "command-palette", "layout.awk"),
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    )
+  } catch (error) {
+    const stderr = (error as { stderr?: Buffer }).stderr?.toString().trim()
+    throw new Error(`invalid spec ${JSON.stringify(spec)}${stderr ? ` — ${stderr}` : ""}`)
+  }
+}
 
 // First role label inside the spec, skipping the H/V combinators.
 const firstRole = (spec: string) => {
@@ -92,6 +116,8 @@ export default tool({
     const desc = args.desc ?? `Layout "${label}" (${spec})`
     const file = join(context.worktree, "plugins", "command-palette", "layouts", `${name}.sh`)
 
+    assertValidSpec(context.worktree, spec)
+
     if (!args.force && existsSync(file)) {
       throw new Error(
         `plugins/command-palette/layouts/${name}.sh already exists (use force: true to overwrite)`,
@@ -105,7 +131,7 @@ export default tool({
     return [
       `created plugins/command-palette/layouts/${name}.sh`,
       "",
-      "reload with C-a r to pick it up in the palette Layouts section",
+      "no reload needed: the palette globs layouts/*.sh on every run — pick it under C-a f → Layouts",
     ].join("\n")
   },
 })
